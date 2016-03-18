@@ -12,6 +12,7 @@ using Java.IO;
 using System.Security.Cryptography.X509Certificates;
 using System.Globalization;
 using Android.OS;
+using Java.Util.Concurrent;
 
 namespace ModernHttpClient
 {
@@ -82,7 +83,7 @@ namespace ModernHttpClient
         {
             if (Timeout != null)
             {
-                var timeout = (long)TimeOut.Value.TotalMilliseconds;
+                var timeout = (long)Timeout.Value.TotalMilliseconds;
                 client.SetConnectTimeout(timeout, TimeUnit.Milliseconds);
                 client.SetWriteTimeout(timeout, TimeUnit.Milliseconds);
                 client.SetReadTimeout(timeout, TimeUnit.Milliseconds);
