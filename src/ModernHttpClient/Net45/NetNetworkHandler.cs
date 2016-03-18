@@ -11,6 +11,8 @@ namespace ModernHttpClient
 
         public NativeMessageHandler() : this(false, false) {}
 
+        public TimeSpan? Timeout { get; set; }
+
         public NativeMessageHandler(bool throwOnCaptiveNetwork, bool customSSLVerification, NativeCookieHandler cookieHandler = null)
         {
             UseCookies = cookieHandler != null;
