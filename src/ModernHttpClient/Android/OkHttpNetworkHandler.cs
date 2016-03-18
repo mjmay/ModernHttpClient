@@ -236,10 +236,25 @@ namespace ModernHttpClient
                 goto bail;
             } 
 
-            if (certificates.Length == 1) {//no root?
-                errors = System.Net.Security.SslPolicyErrors.RemoteCertificateChainErrors;
-                goto bail;
-            } 
+            /***
+             * NOTE:
+             *         Typically speaking, most servers do not send their root certificate in response to
+             * the method call of [deprecated] GetPeerCertificateChain() or [latest] GetPeerCertificates().
+             * The ServicePointManager.ServerCertificateValidationCallback Action variable, specifically in
+             * the case of Xactware's Xactimate, gets set to the CertificatePinningValidator.  We will allow
+             * certificate arrays of length 1 to pass through and be examined to provide more hardware
+             * support. We learned that iOS devices kindly place the root cert into the chain, whereas
+             * Android devices send you the chain "as-is" (i.e. if server didn't send root,
+             * you get no root).
+             * 
+             * Keeping the commented out code for now in case unforseen ramifications of this decision
+             * appear in the future.
+             
+           if (certificates.Length == 1) {//no root?
+               errors = System.Net.Security.SslPolicyErrors.RemoteCertificateChainErrors;
+               goto bail;
+           }
+           ***/
 
             var netCerts = certificates.Select(x => new X509Certificate2(x.GetEncoded())).ToArray();
 
