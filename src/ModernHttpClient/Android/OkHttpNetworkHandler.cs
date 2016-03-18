@@ -12,6 +12,7 @@ using Java.IO;
 using System.Security.Cryptography.X509Certificates;
 using System.Globalization;
 using Android.OS;
+using Java.Util.Concurrent;
 
 namespace ModernHttpClient
 {
@@ -29,6 +30,7 @@ namespace ModernHttpClient
             };
 
         public bool DisableCaching { get; set; }
+        public TimeSpan? Timeout { get; set; }
 
         public NativeMessageHandler() : this(false, false) {}
 
@@ -79,6 +81,14 @@ namespace ModernHttpClient
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (Timeout != null)
+            {
+                var timeout = (long)Timeout.Value.TotalMilliseconds;
+                client.SetConnectTimeout(timeout, TimeUnit.Milliseconds);
+                client.SetWriteTimeout(timeout, TimeUnit.Milliseconds);
+                client.SetReadTimeout(timeout, TimeUnit.Milliseconds);
+            }
+
             var java_uri = request.RequestUri.GetComponents(UriComponents.AbsoluteUri, UriFormat.UriEscaped);
             var url = new Java.Net.URL(java_uri);
 
