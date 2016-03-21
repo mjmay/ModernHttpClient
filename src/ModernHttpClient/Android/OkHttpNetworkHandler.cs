@@ -81,7 +81,7 @@ namespace ModernHttpClient
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            if (Timeout != null)
+            if (TimeOut != null)
             {
                 var timeout = (long)TimeOut.Value.TotalMilliseconds;
                 client.SetConnectTimeout(timeout, TimeUnit.Milliseconds);
