@@ -29,7 +29,7 @@ ModernHttpClient.iOS.dll:
 ModernHttpClient.iOS64.dll:
 	$(MDTOOL) build -c:Release ./src/ModernHttpClient/ModernHttpClient.iOS64.csproj
 	mkdir -p ./build/Xamarin.iOS10
-	mv ./src/ModernHttpClient/bin/Release/Xamarin.iOS10/Modern* ./build/Xamarin.iOS10
+	mv ./src/ModernHttpClient/bin/Release/Xamarin.iOS10/* ./build/Xamarin.iOS10
 
 ModernHttpClient.Portable.dll:
 	$(MDTOOL) build -c:Release ./src/ModernHttpClient/ModernHttpClient.Portable.csproj
