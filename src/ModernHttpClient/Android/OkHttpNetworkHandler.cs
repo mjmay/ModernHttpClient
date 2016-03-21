@@ -30,7 +30,7 @@ namespace ModernHttpClient
             };
 
         public bool DisableCaching { get; set; }
-        public TimeSpan? Timeout { get; set; }
+        public TimeSpan? TimeOut { get; set; }
 
         public NativeMessageHandler() : this(false, false) {}
 
@@ -83,7 +83,7 @@ namespace ModernHttpClient
         {
             if (Timeout != null)
             {
-                var timeout = (long)Timeout.Value.TotalMilliseconds;
+                var timeout = (long)TimeOut.Value.TotalMilliseconds;
                 client.SetConnectTimeout(timeout, TimeUnit.Milliseconds);
                 client.SetWriteTimeout(timeout, TimeUnit.Milliseconds);
                 client.SetReadTimeout(timeout, TimeUnit.Milliseconds);
