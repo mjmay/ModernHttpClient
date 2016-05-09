@@ -265,8 +265,6 @@ namespace ModernHttpClient
 
             public override void DidReceiveChallenge(NSUrlSession session, NSUrlSessionTask task, NSUrlAuthenticationChallenge challenge, Action<NSUrlSessionAuthChallengeDisposition, NSUrlCredential> completionHandler)
             {
-               
-
                 if (challenge.ProtectionSpace.AuthenticationMethod == NSUrlProtectionSpace.AuthenticationMethodNTLM) {
                     NetworkCredential credentialsToUse;
 
@@ -284,34 +282,22 @@ namespace ModernHttpClient
                 }
 
                 if (!This.customSSLVerification) {
-                    goto doDefault;
+                    completionHandler(NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
                 }
 
                 if (challenge.ProtectionSpace.AuthenticationMethod != "NSURLAuthenticationMethodServerTrust") {
-                    goto doDefault;
+                    completionHandler(NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
                 }
 
                 if (ServicePointManager.ServerCertificateValidationCallback == null) {
-                    goto doDefault;
+                    completionHandler(NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
                 }
 
                 // Convert Mono Certificates to .NET certificates and build cert 
                 // chain from root certificate
                 var serverCertChain = challenge.ProtectionSpace.ServerSecTrust;
                 var chain = new X509Chain();
-                X509Certificate2 root = null;
-                var errors = SslPolicyErrors.None;
-
-                if (serverCertChain == null || serverCertChain.Count == 0) { 
-                    errors = SslPolicyErrors.RemoteCertificateNotAvailable;
-                    goto sslErrorVerify;
-                }
-
-                if (serverCertChain.Count == 1) {
-                    errors = SslPolicyErrors.RemoteCertificateChainErrors;
-                    goto sslErrorVerify;
-                }
-
+               
                 var netCerts = Enumerable.Range(0, serverCertChain.Count)
                     .Select(x => serverCertChain[x].ToX509Certificate2())
                     .ToArray();
@@ -320,40 +306,30 @@ namespace ModernHttpClient
                     chain.ChainPolicy.ExtraStore.Add(netCerts[i]);
                 }
 
-                root = netCerts[0];
+                X509Certificate2 root = netCerts[0];
 
                 chain.ChainPolicy.RevocationFlag = X509RevocationFlag.EntireChain;
                 chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
                 chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 1, 0);
                 chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
 
-                if (!chain.Build(root)) {
-                    errors = SslPolicyErrors.RemoteCertificateChainErrors;
-                    goto sslErrorVerify;
-                }
+                chain.Build(root);
 
-                var subject = root.Subject;
-                var subjectCn = cnRegex.Match(subject).Groups[1].Value;
-
-                if (String.IsNullOrWhiteSpace(subjectCn) || !Utility.MatchHostnameToPattern(task.CurrentRequest.Url.Host, subjectCn)) {
-                    errors = SslPolicyErrors.RemoteCertificateNameMismatch;
-                    goto sslErrorVerify;
-                }
-
-            sslErrorVerify:
                 var hostname = task.CurrentRequest.Url.Host;
-                bool result = ServicePointManager.ServerCertificateValidationCallback(hostname, root, chain, errors);
+                bool result = ServicePointManager.ServerCertificateValidationCallback(hostname, root, chain, SslPolicyErrors.None);
                 if (result) {
-                    completionHandler(
+                    completionHandler(NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
+                    /* Normally, the ServerCertificateValidationCallback can override the actual validation of the certificate. However, for some dumb reason, 
+                     * the validation doesn't happen correctly. Thus either always rejecting trusted CAs, or always trusting untrusted CAs. The best way to fix this is if the callback
+                     * returns true, do the default validation. This will prevent the callback from ever trusting and untrusted certificate. But we'll never need to do that. 
+                     * completionHandler(
                         NSUrlSessionAuthChallengeDisposition.UseCredential,
                         NSUrlCredential.FromTrust(challenge.ProtectionSpace.ServerSecTrust));
+                    */
+
                 } else {
                     completionHandler(NSUrlSessionAuthChallengeDisposition.CancelAuthenticationChallenge, null);
                 }
-                return;
-
-            doDefault:
-                completionHandler(NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
                 return;
             }
 
