@@ -2,7 +2,7 @@ MDTOOL ?= /Applications/Xamarin\ Studio.app/Contents/MacOS/mdtool
 
 .PHONY: all clean
 
-all: ModernHttpClient.iOS.dll ModernHttpClient.iOS64.dll ModernHttpClient.Android.dll ModernHttpClient.Portable.dll
+all: ModernHttpClient.iOS.dll ModernHttpClient.iOS64.dll ModernHttpClient.Android.dll ModernHttpClient.Portable.dll ModernHttpClient.Net45.dll
 
 package: ModernHttpClient.iOS.dll ModernHttpClient.iOS64.dll ModernHttpClient.Android.dll ModernHttpClient.Portable.dll
 	mono vendor/nuget/NuGet.exe pack ./ModernHttpClient.nuspec
