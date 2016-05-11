@@ -227,64 +227,29 @@ namespace ModernHttpClient
             // Convert java certificates to .NET certificates and build cert chain from root certificate
             var certificates = session.GetPeerCertificateChain();
             var chain = new X509Chain();
-            X509Certificate2 root = null;
-            var errors = System.Net.Security.SslPolicyErrors.None;
-
-            // Build certificate chain and check for errors
-            if (certificates == null || certificates.Length == 0) {//no cert at all
-                errors = System.Net.Security.SslPolicyErrors.RemoteCertificateNotAvailable;
-                goto bail;
-            } 
-
-            /***
-             * NOTE:
-             *         Typically speaking, most servers do not send their root certificate in response to
-             * the method call of [deprecated] GetPeerCertificateChain() or [latest] GetPeerCertificates().
-             * The ServicePointManager.ServerCertificateValidationCallback Action variable, specifically in
-             * the case of Xactware's Xactimate, gets set to the CertificatePinningValidator.  We will allow
-             * certificate arrays of length 1 to pass through and be examined to provide more hardware
-             * support. We learned that iOS devices kindly place the root cert into the chain, whereas
-             * Android devices send you the chain "as-is" (i.e. if server didn't send root,
-             * you get no root).
-             * 
-             * Keeping the commented out code for now in case unforseen ramifications of this decision
-             * appear in the future.
-             
-           if (certificates.Length == 1) {//no root?
-               errors = System.Net.Security.SslPolicyErrors.RemoteCertificateChainErrors;
-               goto bail;
-           }
-           ***/
-
             var netCerts = certificates.Select(x => new X509Certificate2(x.GetEncoded())).ToArray();
 
             for (int i = 1; i < netCerts.Length; i++) {
                 chain.ChainPolicy.ExtraStore.Add(netCerts[i]);
             }
 
-            root = netCerts[0];
+            X509Certificate2 root = netCerts[0];
 
             chain.ChainPolicy.RevocationFlag = X509RevocationFlag.EntireChain;
             chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
             chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 1, 0);
             chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
 
-            if (!chain.Build(root)) {
-                errors = System.Net.Security.SslPolicyErrors.RemoteCertificateChainErrors;
-                goto bail;
+            chain.Build(root);
+          
+            //If the callback returns true, then we want it to continue with the default validation. The call back is only responsible for 
+            //certificate pinning. Nothing else. 
+            if (ServicePointManager.ServerCertificateValidationCallback(hostname, root, chain, System.Net.Security.SslPolicyErrors.None)) 
+            {
+                return defaultVerifier.Verify(hostname, session);
             }
 
-            var subject = root.Subject;
-            var subjectCn = cnRegex.Match(subject).Groups[1].Value;
-
-            if (String.IsNullOrWhiteSpace(subjectCn) || !Utility.MatchHostnameToPattern(hostname, subjectCn)) {
-                errors = System.Net.Security.SslPolicyErrors.RemoteCertificateNameMismatch;
-                goto bail;
-            }
-
-        bail:
-            // Call the delegate to validate
-            return ServicePointManager.ServerCertificateValidationCallback(hostname, root, chain, errors);
+            return false;
         }
 
         /// <summary>
