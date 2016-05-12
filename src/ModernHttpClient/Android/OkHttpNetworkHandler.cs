@@ -13,6 +13,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Globalization;
 using Android.OS;
 using Java.Util.Concurrent;
+using Java.Net;
 
 namespace ModernHttpClient
 {
@@ -190,7 +191,11 @@ namespace ModernHttpClient
                 // Kind of a hack, but the simplest way to find out that server cert. validation failed
                 if (p1.Message == String.Format("Hostname '{0}' was not verified", p0.Url().Host)) {
                     tcs.TrySetException(new WebException(p1.LocalizedMessage, WebExceptionStatus.TrustFailure));
-                } else {
+                }
+                else if (p1 is UnknownHostException) {
+                    tcs.TrySetException (new OperationCanceledException ());
+                }
+                else {
                     tcs.TrySetException(p1);
                 }
             }
