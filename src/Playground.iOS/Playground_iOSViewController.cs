@@ -19,23 +19,6 @@ namespace Playground.iOS
     {
         public Playground_iOSViewController () : base ("Playground_iOSViewController", null)
         {
-            /*
-            Task.Run (async () => {
-                var client = new HttpClient(new NSUrlSessionHandler());
-
-                var item = new { MyProperty = "Property Value" };
-                var content = new StringContent(JsonConvert.SerializeObject(item), Encoding.UTF8, "application/json");
-                var result = await client.PostAsync("http://requestb.in/1aj9b9c1", content);
-
-                result.EnsureSuccessStatusCode();
-            });
-            */
-
-            //This API is only available in Mono and Xamarin products.
-            //You can filter and/or re-order the ciphers suites that the SSL/TLS server will accept from a client.
-            //The following example removes weak (export) ciphers from the list that will be offered to the server.
-            ServicePointManager.ClientCipherSuitesCallback += (protocol, allCiphers) =>
-                allCiphers.Where(x => !x.Contains("EXPORT")).ToList();
 
             //Here we accept any certificate and just print the cert's data.
             ServicePointManager.ServerCertificateValidationCallback += (sender, certificate, chain, sslPolicyErrors) => {
