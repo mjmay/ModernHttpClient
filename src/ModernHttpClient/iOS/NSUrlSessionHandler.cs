@@ -316,8 +316,8 @@ namespace ModernHttpClient
                 chain.Build(root);
 
                 var hostname = task.CurrentRequest.Url.Host;
-                bool result = ServicePointManager.ServerCertificateValidationCallback(hostname, root, chain, SslPolicyErrors.None);
-                if (result) {
+                bool? result = ServicePointManager.ServerCertificateValidationCallback?.Invoke(hostname, root, chain, SslPolicyErrors.None);
+                if (result == null || result == true) {
                     completionHandler(NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
                     /* Normally, the ServerCertificateValidationCallback can override the actual validation of the certificate. However, for some dumb reason, 
                      * the validation doesn't happen correctly. Thus either always rejecting trusted CAs, or always trusting untrusted CAs. The best way to fix this is if the callback
