@@ -32,19 +32,19 @@ namespace ModernHttpClient
         public CancellationToken CancellationToken { get; set; }
         public bool IsCompleted { get; set; }
     }
-     
+
     public class NativeMessageHandler : HttpClientHandler
     {
         readonly NSUrlSession session;
 
-        readonly Dictionary<NSUrlSessionTask, InflightOperation> inflightRequests = 
-            new Dictionary<NSUrlSessionTask, InflightOperation>();
+        readonly Dictionary<NSUrlSessionTask, InflightOperation> inflightRequests =
+            new Dictionary<NSUrlSessionTask, InflightOperation> ();
 
-        readonly Dictionary<HttpRequestMessage, ProgressDelegate> registeredProgressCallbacks = 
-            new Dictionary<HttpRequestMessage, ProgressDelegate>();
+        readonly Dictionary<HttpRequestMessage, ProgressDelegate> registeredProgressCallbacks =
+            new Dictionary<HttpRequestMessage, ProgressDelegate> ();
 
         readonly Dictionary<string, string> headerSeparators =
-            new Dictionary<string, string>(){ 
+            new Dictionary<string, string> (){
                 {"User-Agent", " "}
             };
 
@@ -54,15 +54,15 @@ namespace ModernHttpClient
         public bool DisableCaching { get; set; }
         public TimeSpan? Timeout { get; set; }
 
-        public NativeMessageHandler(): this(false, false, null, null) { }
+        public NativeMessageHandler () : this (false, false, null, null) { }
 
         public NativeMessageHandler (bool throwOnCaptiveNetwork, bool customSSLVerification, NativeCookieHandler cookieHandler = null)
             : this (throwOnCaptiveNetwork, customSSLVerification, cookieHandler, null)
         {
-            
+
         }
 
-        public NativeMessageHandler(bool throwOnCaptiveNetwork, bool customSSLVerification, NativeCookieHandler cookieHandler = null, SslProtocol? minimumSSLProtocol = null)
+        public NativeMessageHandler (bool throwOnCaptiveNetwork, bool customSSLVerification, NativeCookieHandler cookieHandler = null, SslProtocol? minimumSSLProtocol = null)
         {
             var configuration = NSUrlSessionConfiguration.DefaultSessionConfiguration;
 
@@ -73,9 +73,9 @@ namespace ModernHttpClient
                 configuration.TLSMinimumSupportedProtocol = minimumSSLProtocol.Value;
             }
 
-            session = NSUrlSession.FromConfiguration(
-                NSUrlSessionConfiguration.DefaultSessionConfiguration, 
-                new DataTaskDelegate(this), null);
+            session = NSUrlSession.FromConfiguration (
+                NSUrlSessionConfiguration.DefaultSessionConfiguration,
+                new DataTaskDelegate (this), null);
 
             this.throwOnCaptiveNetwork = throwOnCaptiveNetwork;
             this.customSSLVerification = customSSLVerification;
@@ -83,143 +83,143 @@ namespace ModernHttpClient
             this.DisableCaching = false;
         }
 
-        string getHeaderSeparator(string name)
+        string getHeaderSeparator (string name)
         {
-            if (headerSeparators.ContainsKey(name)) {
-                return headerSeparators[name];
+            if (headerSeparators.ContainsKey (name)) {
+                return headerSeparators [name];
             }
 
             return ",";
         }
 
-        public void RegisterForProgress(HttpRequestMessage request, ProgressDelegate callback)
+        public void RegisterForProgress (HttpRequestMessage request, ProgressDelegate callback)
         {
-            if (callback == null && registeredProgressCallbacks.ContainsKey(request)) {
-                registeredProgressCallbacks.Remove(request);
+            if (callback == null && registeredProgressCallbacks.ContainsKey (request)) {
+                registeredProgressCallbacks.Remove (request);
                 return;
             }
 
-            registeredProgressCallbacks[request] = callback;
+            registeredProgressCallbacks [request] = callback;
         }
 
-        ProgressDelegate getAndRemoveCallbackFromRegister(HttpRequestMessage request)
+        ProgressDelegate getAndRemoveCallbackFromRegister (HttpRequestMessage request)
         {
             ProgressDelegate emptyDelegate = delegate { };
 
             lock (registeredProgressCallbacks) {
-                if (!registeredProgressCallbacks.ContainsKey(request)) return emptyDelegate;
+                if (!registeredProgressCallbacks.ContainsKey (request)) return emptyDelegate;
 
-                var callback = registeredProgressCallbacks[request];
-                registeredProgressCallbacks.Remove(request);
+                var callback = registeredProgressCallbacks [request];
+                registeredProgressCallbacks.Remove (request);
                 return callback;
             }
         }
 
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync (HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var headers = request.Headers as IEnumerable<KeyValuePair<string, IEnumerable<string>>>;
-            var ms = new MemoryStream();
+            var ms = new MemoryStream ();
 
             if (request.Content != null) {
-                await request.Content.CopyToAsync(ms).ConfigureAwait(false);
-                headers = headers.Union(request.Content.Headers).ToArray();
+                await request.Content.CopyToAsync (ms).ConfigureAwait (false);
+                headers = headers.Union (request.Content.Headers).ToArray ();
             }
 
-            var rq = new NSMutableUrlRequest() {
+            var rq = new NSMutableUrlRequest () {
                 AllowsCellularAccess = true,
-                Body = NSData.FromArray(ms.ToArray()),
+                Body = NSData.FromArray (ms.ToArray ()),
                 CachePolicy = (!this.DisableCaching ? NSUrlRequestCachePolicy.UseProtocolCachePolicy : NSUrlRequestCachePolicy.ReloadIgnoringCacheData),
-                Headers = headers.Aggregate(new NSMutableDictionary(), (acc, x) => {
-                    acc.Add(new NSString(x.Key), new NSString(String.Join(getHeaderSeparator(x.Key), x.Value)));
+                Headers = headers.Aggregate (new NSMutableDictionary (), (acc, x) => {
+                    acc.Add (new NSString (x.Key), new NSString (String.Join (getHeaderSeparator (x.Key), x.Value)));
                     return acc;
                 }),
-                HttpMethod = request.Method.ToString().ToUpperInvariant(),
-                Url = NSUrl.FromString(request.RequestUri.AbsoluteUri),
+                HttpMethod = request.Method.ToString ().ToUpperInvariant (),
+                Url = NSUrl.FromString (request.RequestUri.AbsoluteUri),
             };
 
             if (Timeout != null)
                 rq.TimeoutInterval = Timeout.Value.Seconds;
 
-            var op = session.CreateDataTask(rq);
+            var op = session.CreateDataTask (rq);
 
-            cancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested ();
 
-            var ret = new TaskCompletionSource<HttpResponseMessage>();
-            cancellationToken.Register(() => ret.TrySetCanceled());
+            var ret = new TaskCompletionSource<HttpResponseMessage> ();
+            cancellationToken.Register (() => ret.TrySetCanceled ());
 
             lock (inflightRequests) {
-                inflightRequests[op] = new InflightOperation() {
+                inflightRequests [op] = new InflightOperation () {
                     FutureResponse = ret,
                     Request = request,
-                    Progress = getAndRemoveCallbackFromRegister(request),
-                    ResponseBody = new ByteArrayListStream(),
+                    Progress = getAndRemoveCallbackFromRegister (request),
+                    ResponseBody = new ByteArrayListStream (),
                     CancellationToken = cancellationToken,
                 };
             }
 
-            op.Resume();
-            return await ret.Task.ConfigureAwait(false);
+            op.Resume ();
+            return await ret.Task.ConfigureAwait (false);
         }
 
         class DataTaskDelegate : NSUrlSessionDataDelegate
         {
             NativeMessageHandler This { get; set; }
 
-            public DataTaskDelegate(NativeMessageHandler that)
+            public DataTaskDelegate (NativeMessageHandler that)
             {
                 this.This = that;
             }
 
-            public override void DidReceiveResponse(NSUrlSession session, NSUrlSessionDataTask dataTask, NSUrlResponse response, Action<NSUrlSessionResponseDisposition> completionHandler)
+            public override void DidReceiveResponse (NSUrlSession session, NSUrlSessionDataTask dataTask, NSUrlResponse response, Action<NSUrlSessionResponseDisposition> completionHandler)
             {
-                var data = getResponseForTask(dataTask);
+                var data = getResponseForTask (dataTask);
 
                 try {
                     if (data.CancellationToken.IsCancellationRequested) {
-                        dataTask.Cancel();
+                        dataTask.Cancel ();
                     }
 
                     var resp = (NSHttpUrlResponse)response;
                     var req = data.Request;
 
                     if (This.throwOnCaptiveNetwork && req.RequestUri.Host != resp.Url.Host) {
-                        throw new CaptiveNetworkException(req.RequestUri, new Uri(resp.Url.ToString()));
+                        throw new CaptiveNetworkException (req.RequestUri, new Uri (resp.Url.ToString ()));
                     }
 
-                    var content = new CancellableStreamContent(data.ResponseBody, () => {
+                    var content = new CancellableStreamContent (data.ResponseBody, () => {
                         if (!data.IsCompleted) {
-                            dataTask.Cancel();
+                            dataTask.Cancel ();
                         }
                         data.IsCompleted = true;
 
-                        data.ResponseBody.SetException(new OperationCanceledException());
+                        data.ResponseBody.SetException (new OperationCanceledException ());
                     });
 
                     content.Progress = data.Progress;
 
                     // NB: The double cast is because of a Xamarin compiler bug
                     int status = (int)resp.StatusCode;
-                    var ret = new HttpResponseMessage((HttpStatusCode)status) {
+                    var ret = new HttpResponseMessage ((HttpStatusCode)status) {
                         Content = content,
                         RequestMessage = data.Request,
                     };
-                    ret.RequestMessage.RequestUri = new Uri(resp.Url.AbsoluteString);
+                    ret.RequestMessage.RequestUri = new Uri (resp.Url.AbsoluteString);
 
-                    foreach(var v in resp.AllHeaderFields) {
+                    foreach (var v in resp.AllHeaderFields) {
                         // NB: Cocoa trolling us so hard by giving us back dummy
                         // dictionary entries
                         if (v.Key == null || v.Value == null) continue;
 
-                        ret.Headers.TryAddWithoutValidation(v.Key.ToString(), v.Value.ToString());
-                        ret.Content.Headers.TryAddWithoutValidation(v.Key.ToString(), v.Value.ToString());
+                        ret.Headers.TryAddWithoutValidation (v.Key.ToString (), v.Value.ToString ());
+                        ret.Content.Headers.TryAddWithoutValidation (v.Key.ToString (), v.Value.ToString ());
                     }
 
-                    data.FutureResponse.TrySetResult(ret);
+                    data.FutureResponse.TrySetResult (ret);
                 } catch (Exception ex) {
-                    data.FutureResponse.TrySetException(ex);
+                    data.FutureResponse.TrySetException (ex);
                 }
 
-                completionHandler(NSUrlSessionResponseDisposition.Allow);
+                completionHandler (NSUrlSessionResponseDisposition.Allow);
             }
 
             public override void WillCacheResponse (NSUrlSession session, NSUrlSessionDataTask dataTask,
@@ -230,47 +230,47 @@ namespace ModernHttpClient
 
             public override void DidCompleteWithError (NSUrlSession session, NSUrlSessionTask task, NSError error)
             {
-                var data = getResponseForTask(task);
+                var data = getResponseForTask (task);
                 data.IsCompleted = true;
 
                 if (error != null) {
-                    var ex = createExceptionForNSError(error);
+                    var ex = createExceptionForNSError (error);
 
                     // Pass the exception to the response
-                    data.FutureResponse.TrySetException(ex);
-                    data.ResponseBody.SetException(ex);
+                    data.FutureResponse.TrySetException (ex);
+                    data.ResponseBody.SetException (ex);
                     return;
                 }
 
-                data.ResponseBody.Complete();
+                data.ResponseBody.Complete ();
 
                 lock (This.inflightRequests) {
-                    This.inflightRequests.Remove(task);
+                    This.inflightRequests.Remove (task);
                 }
             }
 
             public override void DidReceiveData (NSUrlSession session, NSUrlSessionDataTask dataTask, NSData byteData)
             {
-                var data = getResponseForTask(dataTask);
-                var bytes = byteData.ToArray();
+                var data = getResponseForTask (dataTask);
+                var bytes = byteData.ToArray ();
 
                 // NB: If we're cancelled, we still might have one more chunk 
                 // of data that attempts to be delivered
                 if (data.IsCompleted) return;
 
-                data.ResponseBody.AddByteArray(bytes);
+                data.ResponseBody.AddByteArray (bytes);
             }
 
-            InflightOperation getResponseForTask(NSUrlSessionTask task)
+            InflightOperation getResponseForTask (NSUrlSessionTask task)
             {
                 lock (This.inflightRequests) {
-                    return This.inflightRequests[task];
+                    return This.inflightRequests [task];
                 }
             }
 
-            static readonly Regex cnRegex = new Regex(@"CN\s*=\s*([^,]*)", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+            static readonly Regex cnRegex = new Regex (@"CN\s*=\s*([^,]*)", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
 
-            public override void DidReceiveChallenge(NSUrlSession session, NSUrlSessionTask task, NSUrlAuthenticationChallenge challenge, Action<NSUrlSessionAuthChallengeDisposition, NSUrlCredential> completionHandler)
+            public override void DidReceiveChallenge (NSUrlSession session, NSUrlSessionTask task, NSUrlAuthenticationChallenge challenge, Action<NSUrlSessionAuthChallengeDisposition, NSUrlCredential> completionHandler)
             {
                 if (challenge.ProtectionSpace.AuthenticationMethod == NSUrlProtectionSpace.AuthenticationMethodNTLM) {
                     NetworkCredential credentialsToUse;
@@ -279,85 +279,86 @@ namespace ModernHttpClient
                         if (This.Credentials is NetworkCredential) {
                             credentialsToUse = (NetworkCredential)This.Credentials;
                         } else {
-                            var uri = this.getResponseForTask(task).Request.RequestUri;
-                            credentialsToUse = This.Credentials.GetCredential(uri, "NTLM");
+                            var uri = this.getResponseForTask (task).Request.RequestUri;
+                            credentialsToUse = This.Credentials.GetCredential (uri, "NTLM");
                         }
-                        var credential = new NSUrlCredential(credentialsToUse.UserName, credentialsToUse.Password, NSUrlCredentialPersistence.ForSession);
-                        completionHandler(NSUrlSessionAuthChallengeDisposition.UseCredential, credential);
+                        var credential = new NSUrlCredential (credentialsToUse.UserName, credentialsToUse.Password, NSUrlCredentialPersistence.ForSession);
+                        completionHandler (NSUrlSessionAuthChallengeDisposition.UseCredential, credential);
                     }
                     return;
                 }
 
                 if (!This.customSSLVerification) {
-                    completionHandler(NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
+                    completionHandler (NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
                 }
 
                 if (challenge.ProtectionSpace.AuthenticationMethod != "NSURLAuthenticationMethodServerTrust") {
-                    completionHandler(NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
+                    completionHandler (NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
                 }
 
                 if (ServicePointManager.ServerCertificateValidationCallback == null) {
-                    completionHandler(NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
+                    completionHandler (NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
                 }
 
                 // Convert Mono Certificates to .NET certificates and build cert 
                 // chain from root certificate
                 var serverCertChain = challenge.ProtectionSpace.ServerSecTrust;
-                var chain = new X509Chain();
-               
-                var netCerts = Enumerable.Range(0, serverCertChain.Count)
-                    .Select(x => serverCertChain[x].ToX509Certificate2())
-                    .ToArray();
+                var chain = new X509Chain ();
+
+                var netCerts = Enumerable.Range (0, serverCertChain.Count)
+                    .Select (x => serverCertChain [x].ToX509Certificate2 ())
+                    .ToArray ();
 
                 for (int i = 1; i < netCerts.Length; i++) {
-                    chain.ChainPolicy.ExtraStore.Add(netCerts[i]);
+                    chain.ChainPolicy.ExtraStore.Add (netCerts [i]);
                 }
 
-                X509Certificate2 root = netCerts[0];
+                X509Certificate2 root = netCerts [0];
 
                 chain.ChainPolicy.RevocationFlag = X509RevocationFlag.EntireChain;
                 chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-                chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 1, 0);
+                chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan (0, 1, 0);
                 chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
 
-                chain.Build(root);
+                chain.Build (root);
 
                 var hostname = task.CurrentRequest.Url.Host;
-                bool? result = ServicePointManager.ServerCertificateValidationCallback?.Invoke(hostname, root, chain, SslPolicyErrors.None);
+                bool? result = ServicePointManager.ServerCertificateValidationCallback?.Invoke (hostname, root, chain, SslPolicyErrors.None);
                 if (result == null || result == true) {
-                    completionHandler(NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
-                    /* Normally, the ServerCertificateValidationCallback can override the actual validation of the certificate. However, for some dumb reason, 
-                     * the validation doesn't happen correctly. Thus either always rejecting trusted CAs, or always trusting untrusted CAs. The best way to fix this is if the callback
-                     * returns true, do the default validation. This will prevent the callback from ever trusting and untrusted certificate. But we'll never need to do that. 
-                     * completionHandler(
-                        NSUrlSessionAuthChallengeDisposition.UseCredential,
-                        NSUrlCredential.FromTrust(challenge.ProtectionSpace.ServerSecTrust));
-                    */
+                    //completionHandler(NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
+                    ///* Normally, the ServerCertificateValidationCallback can override the actual validation of the certificate. However, for some dumb reason, 
+                    // * the validation doesn't happen correctly. Thus either always rejecting trusted CAs, or always trusting untrusted CAs. The best way to fix this is if the callback
+                    // * returns true, do the default validation. This will prevent the callback from ever trusting and untrusted certificate. But we'll never need to do that. 
+                    // except for now we need to do that.
+                    completionHandler (
+                      NSUrlSessionAuthChallengeDisposition.UseCredential,
+                      NSUrlCredential.FromTrust (challenge.ProtectionSpace.ServerSecTrust));
+
 
                 } else {
-                    completionHandler(NSUrlSessionAuthChallengeDisposition.CancelAuthenticationChallenge, null);
+                    completionHandler (NSUrlSessionAuthChallengeDisposition.CancelAuthenticationChallenge, null);
                 }
                 return;
             }
 
-            public override void WillPerformHttpRedirection(NSUrlSession session, NSUrlSessionTask task, NSHttpUrlResponse response, NSUrlRequest newRequest, Action<NSUrlRequest> completionHandler)
+            public override void WillPerformHttpRedirection (NSUrlSession session, NSUrlSessionTask task, NSHttpUrlResponse response, NSUrlRequest newRequest, Action<NSUrlRequest> completionHandler)
             {
                 NSUrlRequest nextRequest = (This.AllowAutoRedirect ? newRequest : null);
-                completionHandler(nextRequest);
+                completionHandler (nextRequest);
             }
 
-            static Exception createExceptionForNSError(NSError error)
+            static Exception createExceptionForNSError (NSError error)
             {
-                var ret = default(Exception);
+                var ret = default (Exception);
                 var webExceptionStatus = WebExceptionStatus.UnknownError;
 
-                var innerException = new NSErrorException(error);
+                var innerException = new NSErrorException (error);
 
                 if (error.Domain == NSError.NSUrlErrorDomain) {
                     // Convert the error code into an enumeration (this is future
                     // proof, rather than just casting integer)
                     NSUrlErrorExtended urlError;
-                    if (!Enum.TryParse<NSUrlErrorExtended>(error.Code.ToString(), out urlError)) urlError = NSUrlErrorExtended.Unknown;
+                    if (!Enum.TryParse<NSUrlErrorExtended> (error.Code.ToString (), out urlError)) urlError = NSUrlErrorExtended.Unknown;
 
                     // Parse the enum into a web exception status or exception. Some
                     // of these values don't necessarily translate completely to
@@ -370,7 +371,7 @@ namespace ModernHttpClient
                     case NSUrlErrorExtended.Cancelled:
                     case NSUrlErrorExtended.UserCancelledAuthentication:
                         // No more processing is required so just return.
-                        return new OperationCanceledException(error.LocalizedDescription, innerException);
+                        return new OperationCanceledException (error.LocalizedDescription, innerException);
                     case NSUrlErrorExtended.BadURL:
                     case NSUrlErrorExtended.UnsupportedURL:
                     case NSUrlErrorExtended.CannotConnectToHost:
@@ -435,13 +436,13 @@ namespace ModernHttpClient
                     }
 
                     goto done;
-                } 
+                }
 
                 if (error.Domain == CFNetworkError.ErrorDomain) {
                     // Convert the error code into an enumeration (this is future
                     // proof, rather than just casting integer)
                     CFNetworkErrors networkError;
-                    if (!Enum.TryParse<CFNetworkErrors>(error.Code.ToString(), out networkError)) {
+                    if (!Enum.TryParse<CFNetworkErrors> (error.Code.ToString (), out networkError)) {
                         networkError = CFNetworkErrors.CFHostErrorUnknown;
                     }
 
@@ -457,7 +458,7 @@ namespace ModernHttpClient
                     case CFNetworkErrors.CFURLErrorUserCancelledAuthentication:
                     case CFNetworkErrors.CFNetServiceErrorCancel:
                         // No more processing is required so just return.
-                        return new OperationCanceledException(error.LocalizedDescription, innerException);
+                        return new OperationCanceledException (error.LocalizedDescription, innerException);
                     case CFNetworkErrors.CFSOCKS5ErrorBadCredentials:
                     case CFNetworkErrors.CFSOCKS5ErrorUnsupportedNegotiationMethod:
                     case CFNetworkErrors.CFSOCKS5ErrorNoAcceptableMethod:
@@ -562,48 +563,48 @@ namespace ModernHttpClient
             done:
 
                 // Always create a WebException so that it can be handled by the client.
-                ret = new WebException(error.LocalizedDescription, innerException, webExceptionStatus, response: null);
+                ret = new WebException (error.LocalizedDescription, innerException, webExceptionStatus, response: null);
                 return ret;
             }
         }
     }
-            
+
     class ByteArrayListStream : Stream
     {
         Exception exception;
         IDisposable lockRelease;
         readonly AsyncLock readStreamLock;
-        readonly List<byte[]> bytes = new List<byte[]>();
+        readonly List<byte []> bytes = new List<byte []> ();
 
         bool isCompleted;
         long maxLength = 0;
         long position = 0;
         int offsetInCurrentBuffer = 0;
 
-        public ByteArrayListStream()
+        public ByteArrayListStream ()
         {
             // Initially we have nothing to read so Reads should be parked
-            readStreamLock = AsyncLock.CreateLocked(out lockRelease);
+            readStreamLock = AsyncLock.CreateLocked (out lockRelease);
         }
 
         public override bool CanRead { get { return true; } }
         public override bool CanWrite { get { return false; } }
-        public override void Write(byte[] buffer, int offset, int count) { throw new NotSupportedException(); }
-        public override void WriteByte(byte value) { throw new NotSupportedException(); }
+        public override void Write (byte [] buffer, int offset, int count) { throw new NotSupportedException (); }
+        public override void WriteByte (byte value) { throw new NotSupportedException (); }
         public override bool CanSeek { get { return false; } }
         public override bool CanTimeout { get { return false; } }
-        public override void SetLength(long value) { throw new NotSupportedException(); }
-        public override void Flush() { }
+        public override void SetLength (long value) { throw new NotSupportedException (); }
+        public override void Flush () { }
 
-        public override long Seek(long offset, SeekOrigin origin)
-        { 
-            throw new NotSupportedException();
+        public override long Seek (long offset, SeekOrigin origin)
+        {
+            throw new NotSupportedException ();
         }
 
         public override long Position {
             get { return position; }
             set {
-                throw new NotSupportedException();
+                throw new NotSupportedException ();
             }
         }
 
@@ -613,9 +614,9 @@ namespace ModernHttpClient
             }
         }
 
-        public override int Read(byte[] buffer, int offset, int count)
+        public override int Read (byte [] buffer, int offset, int count)
         {
-            return this.ReadAsync(buffer, offset, count).Result;
+            return this.ReadAsync (buffer, offset, count).Result;
         }
 
         /* OMG THIS CODE IS COMPLICATED
@@ -639,7 +640,7 @@ namespace ModernHttpClient
          *
          * If we *are* completed, we should return zero to simply complete the
          * read, signalling we're at the end of the stream */
-        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        public override async Task<int> ReadAsync (byte [] buffer, int offset, int count, CancellationToken cancellationToken)
         {
         retry:
             int bytesRead = 0;
@@ -651,14 +652,14 @@ namespace ModernHttpClient
 
             if (exception != null) throw exception;
 
-            using (await readStreamLock.LockAsync().ConfigureAwait(false)) {
+            using (await readStreamLock.LockAsync ().ConfigureAwait (false)) {
                 lock (bytes) {
                     foreach (var buf in bytes) {
-                        cancellationToken.ThrowIfCancellationRequested();
+                        cancellationToken.ThrowIfCancellationRequested ();
                         if (exception != null) throw exception;
 
-                        int toCopy = Math.Min(count, buf.Length - offsetInCurrentBuffer);
-                        Array.ConstrainedCopy(buf, offsetInCurrentBuffer, buffer, offset, toCopy);
+                        int toCopy = Math.Min (count, buf.Length - offsetInCurrentBuffer);
+                        Array.ConstrainedCopy (buf, offsetInCurrentBuffer, buffer, offset, toCopy);
 
                         count -= toCopy;
                         offset += toCopy;
@@ -675,7 +676,7 @@ namespace ModernHttpClient
                     }
 
                     // Remove buffers that we read in this operation
-                    bytes.RemoveRange(0, buffersToRemove);
+                    bytes.RemoveRange (0, buffersToRemove);
 
                     position += bytesRead;
                 }
@@ -685,7 +686,7 @@ namespace ModernHttpClient
             // the next read to park itself unless AddByteArray or Complete 
             // posts
             if (position >= maxLength && !isCompleted) {
-                lockRelease = await readStreamLock.LockAsync().ConfigureAwait(false);
+                lockRelease = await readStreamLock.LockAsync ().ConfigureAwait (false);
             }
 
             if (bytesRead == 0 && !isCompleted) {
@@ -696,12 +697,12 @@ namespace ModernHttpClient
             }
 
             if (cancellationToken.IsCancellationRequested) {
-                Interlocked.Exchange(ref lockRelease, EmptyDisposable.Instance).Dispose();
-                cancellationToken.ThrowIfCancellationRequested();
+                Interlocked.Exchange (ref lockRelease, EmptyDisposable.Instance).Dispose ();
+                cancellationToken.ThrowIfCancellationRequested ();
             }
 
             if (exception != null) {
-                Interlocked.Exchange(ref lockRelease, EmptyDisposable.Instance).Dispose();
+                Interlocked.Exchange (ref lockRelease, EmptyDisposable.Instance).Dispose ();
                 throw exception;
             }
 
@@ -717,36 +718,36 @@ namespace ModernHttpClient
                 // 
                 // Current condition forces the lock to be released in the end of 5th point
 
-                Interlocked.Exchange(ref lockRelease, EmptyDisposable.Instance).Dispose();
+                Interlocked.Exchange (ref lockRelease, EmptyDisposable.Instance).Dispose ();
             }
 
             return bytesRead;
         }
 
-        public void AddByteArray(byte[] arrayToAdd)
+        public void AddByteArray (byte [] arrayToAdd)
         {
             if (exception != null) throw exception;
-            if (isCompleted) throw new InvalidOperationException("Can't add byte arrays once Complete() is called");
+            if (isCompleted) throw new InvalidOperationException ("Can't add byte arrays once Complete() is called");
 
             lock (bytes) {
                 maxLength += arrayToAdd.Length;
-                bytes.Add(arrayToAdd);
+                bytes.Add (arrayToAdd);
                 //Console.WriteLine("Added a new byte array, {0}: max = {1}", arrayToAdd.Length, maxLength);
             }
 
-            Interlocked.Exchange(ref lockRelease, EmptyDisposable.Instance).Dispose();
+            Interlocked.Exchange (ref lockRelease, EmptyDisposable.Instance).Dispose ();
         }
 
-        public void Complete()
+        public void Complete ()
         {
             isCompleted = true;
-            Interlocked.Exchange(ref lockRelease, EmptyDisposable.Instance).Dispose();
+            Interlocked.Exchange (ref lockRelease, EmptyDisposable.Instance).Dispose ();
         }
 
-        public void SetException(Exception ex)
+        public void SetException (Exception ex)
         {
             exception = ex;
-            Complete();
+            Complete ();
         }
     }
 
@@ -754,31 +755,31 @@ namespace ModernHttpClient
     {
         Action onDispose;
 
-        public CancellableStreamContent(Stream source, Action onDispose) : base(source, CancellationToken.None)
+        public CancellableStreamContent (Stream source, Action onDispose) : base (source, CancellationToken.None)
         {
             this.onDispose = onDispose;
         }
 
-        protected override void Dispose(bool disposing)
+        protected override void Dispose (bool disposing)
         {
-            var disp = Interlocked.Exchange(ref onDispose, null);
-            if (disp != null) disp();
+            var disp = Interlocked.Exchange (ref onDispose, null);
+            if (disp != null) disp ();
 
             // EVIL HAX: We have to let at least one ReadAsync of the underlying
             // stream fail with OperationCancelledException before we can dispose
             // the base, or else the exception coming out of the ReadAsync will
             // be an ObjectDisposedException from an internal MemoryStream. This isn't
             // the Ideal way to fix this, but #yolo.
-            Task.Run(() => base.Dispose(disposing));
+            Task.Run (() => base.Dispose (disposing));
         }
     }
 
     sealed class EmptyDisposable : IDisposable
     {
-        static readonly IDisposable instance = new EmptyDisposable();
+        static readonly IDisposable instance = new EmptyDisposable ();
         public static IDisposable Instance { get { return instance; } }
 
-        EmptyDisposable() { }
-        public void Dispose() { }
+        EmptyDisposable () { }
+        public void Dispose () { }
     }
 }
