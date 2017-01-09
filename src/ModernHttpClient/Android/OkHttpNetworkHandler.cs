@@ -10,13 +10,13 @@ using Java.IO;
 using Java.Net;
 using Java.Util.Concurrent;
 using Javax.Net.Ssl;
-using Square.OkHttp;
+using Square.OkHttp3;
 
 namespace ModernHttpClient
 {
     public class NativeMessageHandler : HttpClientHandler
     {
-        public readonly OkHttpClient client = new OkHttpClient ();
+        private OkHttpClient client;
         readonly CacheControl noCacheCacheControl = default (CacheControl);
         readonly bool throwOnCaptiveNetwork;
 
@@ -27,8 +27,24 @@ namespace ModernHttpClient
                 {"User-Agent", " "}
             };
 
+        public bool CustomSSLVerification
+        {
+            get;
+            private set;
+        }
+
         public bool DisableCaching { get; set; }
-        public TimeSpan? Timeout { get; set; }
+
+        private TimeSpan? _timeout;
+        public TimeSpan? Timeout
+        {
+            get { return _timeout; }
+            set
+            {
+                _timeout = value;
+                RefreshClient();
+            }
+        }
 
         public NativeMessageHandler () : this (false, false)
         {
@@ -37,11 +53,11 @@ namespace ModernHttpClient
         public NativeMessageHandler (bool throwOnCaptiveNetwork, bool customSSLVerification, NativeCookieHandler cookieHandler = null)
         {
             this.throwOnCaptiveNetwork = throwOnCaptiveNetwork;
+            this.CustomSSLVerification = customSSLVerification;
 
-            if (customSSLVerification) {
-                client.SetHostnameVerifier (new HostnameVerifier ());
-            }
-            noCacheCacheControl = (new CacheControl.Builder ()).NoCache ().Build ();
+            RefreshClient();
+
+            noCacheCacheControl = (new CacheControl.Builder()).NoCache().Build();
         }
 
         public void RegisterForProgress (HttpRequestMessage request, ProgressDelegate callback)
@@ -52,6 +68,29 @@ namespace ModernHttpClient
             }
 
             registeredProgressCallbacks [request] = new WeakReference (callback);
+        }
+
+        private void RefreshClient()
+        {
+            if(client != null) {
+                // This should finish out any in flight requests
+                client.Dispatcher().ExecutorService().Shutdown();
+                client = null;
+            }
+
+            var builder = new OkHttpClient.Builder();
+
+            if (CustomSSLVerification) {
+                builder.HostnameVerifier(new HostnameVerifier());
+            }
+            
+            if(Timeout != null) {
+                var timeout = (long)Timeout.Value.TotalMilliseconds;
+                builder.ConnectTimeout(timeout, TimeUnit.Milliseconds)
+                    .WriteTimeout(timeout, TimeUnit.Milliseconds)
+                    .ReadTimeout(timeout, TimeUnit.Milliseconds);
+            }
+            client = builder.Build();
         }
 
         ProgressDelegate getAndRemoveCallbackFromRegister (HttpRequestMessage request)
@@ -83,13 +122,6 @@ namespace ModernHttpClient
 
         protected override async Task<HttpResponseMessage> SendAsync (HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            if (Timeout != null) {
-                var timeout = (long)Timeout.Value.TotalMilliseconds;
-                client.SetConnectTimeout (timeout, TimeUnit.Milliseconds);
-                client.SetWriteTimeout (timeout, TimeUnit.Milliseconds);
-                client.SetReadTimeout (timeout, TimeUnit.Milliseconds);
-            }
-
             var java_uri = request.RequestUri.GetComponents (UriComponents.AbsoluteUri, UriFormat.UriEscaped);
             var url = new Java.Net.URL (java_uri);
 
@@ -131,10 +163,10 @@ namespace ModernHttpClient
             try {
                 resp = await call.EnqueueAsync ().ConfigureAwait (false);
                 var newReq = resp.Request ();
-                var newUri = newReq == null ? null : newReq.Uri ();
+                var newUri = newReq == null ? null : newReq.Url ();
                 request.RequestUri = new Uri (newUri.ToString ());
                 if (throwOnCaptiveNetwork && newUri != null) {
-                    if (url.Host != newUri.Host) {
+                    if (url.Host != newUri.Host()) {
                         throw new CaptiveNetworkException (new Uri (java_uri), new Uri (newUri.ToString ()));
                     }
                 }
@@ -169,11 +201,13 @@ namespace ModernHttpClient
 
             return ret;
         }
+
+
     }
 
     public static class AwaitableOkHttp
     {
-        public static Task<Response> EnqueueAsync (this Call This)
+        public static Task<Response> EnqueueAsync (this ICall This)
         {
             var cb = new OkTaskCallback ();
             This.Enqueue (cb);
@@ -186,21 +220,26 @@ namespace ModernHttpClient
             readonly TaskCompletionSource<Response> tcs = new TaskCompletionSource<Response> ();
             public Task<Response> Task { get { return tcs.Task; } }
 
-            public void OnFailure (Request p0, Java.IO.IOException p1)
+            public void OnFailure(ICall call, IOException exception)
             {
                 // Kind of a hack, but the simplest way to find out that server cert. validation failed
-                if (p1.Message == String.Format ("Hostname '{0}' was not verified", p0.Url ().Host)) {
-                    tcs.TrySetException (new WebException (p1.LocalizedMessage, WebExceptionStatus.TrustFailure));
-                } else if (p1 is UnknownHostException) {
-                    tcs.TrySetException (new System.OperationCanceledException ());
-                } else {
-                    tcs.TrySetException (p1);
+                if (exception.Message == String.Format("Hostname '{0}' was not verified", call.Request().Url().Host()))
+                {
+                    tcs.TrySetException(new WebException(exception.LocalizedMessage, WebExceptionStatus.TrustFailure));
+                }
+                else if (exception is UnknownHostException)
+                {
+                    tcs.TrySetException(new System.OperationCanceledException());
+                }
+                else
+                {
+                    tcs.TrySetException(exception);
                 }
             }
 
-            public void OnResponse (Response p0)
+            public void OnResponse(ICall call, Response response)
             {
-                tcs.TrySetResult (p0);
+                tcs.TrySetResult(response);
             }
         }
     }
