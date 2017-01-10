@@ -69,17 +69,29 @@ namespace ModernHttpClient
 
             registeredProgressCallbacks [request] = new WeakReference (callback);
         }
-
-        private void RefreshClient()
+        
+        public void RebuildClient( Action<OkHttpClient.Builder> customBuild )
         {
-            if(client != null) {
+            if (client != null)
+            {
                 // This should finish out any in flight requests
                 client.Dispatcher().ExecutorService().Shutdown();
                 client = null;
             }
 
             var builder = new OkHttpClient.Builder();
+            CommonClientBuilder(builder);
+            customBuild?.Invoke(builder);
+            client = builder.Build();
+        }
 
+        private void RefreshClient()
+        {
+            RebuildClient(null);
+        }
+
+        private void CommonClientBuilder(OkHttpClient.Builder builder)
+        {
             if (CustomSSLVerification) {
                 builder.HostnameVerifier(new HostnameVerifier());
             }
@@ -90,7 +102,6 @@ namespace ModernHttpClient
                     .WriteTimeout(timeout, TimeUnit.Milliseconds)
                     .ReadTimeout(timeout, TimeUnit.Milliseconds);
             }
-            client = builder.Build();
         }
 
         ProgressDelegate getAndRemoveCallbackFromRegister (HttpRequestMessage request)
@@ -262,7 +273,9 @@ namespace ModernHttpClient
         {
             var defaultVerifier = HttpsURLConnection.DefaultHostnameVerifier;
 
-            if (ServicePointManager.ServerCertificateValidationCallback == null) return defaultVerifier.Verify (hostname, session);
+            if (ServicePointManager.ServerCertificateValidationCallback == null) {
+                return defaultVerifier.Verify(hostname, session);
+            }
 
             // Convert java certificates to .NET certificates and build cert chain from root certificate
             var certificates = session.GetPeerCertificateChain ();
