@@ -32,10 +32,12 @@ namespace Playground.Android
             RunOnUiThread (() => {
                 progress.Max = 10000;
 
-                var progressPercent = (float)totalBytes / (float)totalBytesExpected;
-                var progressOffset = Convert.ToInt32 (progressPercent * 10000);
+                int progressOffset = 0;
+                if(totalBytesExpected > 0) {
+                    var progressPercent = (float)totalBytes / (float)totalBytesExpected;
+                    progressOffset = Convert.ToInt32(progressPercent * 10000);
+                }
 
-                Console.WriteLine (progressOffset);
                 progress.Progress = progressOffset;
             });
         }
@@ -92,7 +94,7 @@ namespace Playground.Android
                     //var url = "https://tv.eurosport.com";
                     //var url = "https://github.com/downloads/nadlabak/android/cm-9.1.0a-umts_sholes.zip";
                     //var url = "https://github.com/paulcbetts/ModernHttpClient/releases/download/0.9.0/ModernHttpClient-0.9.zip";
-                    var url = "https://10.254.243.11/DG1/DigitalBankingApi";
+                    var url = "https://google.com";
 
                     var request = new HttpRequestMessage (HttpMethod.Get, url);
                     handler.RegisterForProgress (request, HandleDownloadProgress);
