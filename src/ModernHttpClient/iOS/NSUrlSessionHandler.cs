@@ -284,20 +284,23 @@ namespace ModernHttpClient
                         }
                         var credential = new NSUrlCredential (credentialsToUse.UserName, credentialsToUse.Password, NSUrlCredentialPersistence.ForSession);
                         completionHandler (NSUrlSessionAuthChallengeDisposition.UseCredential, credential);
+						return;
                     }
-                    return;
                 }
 
                 if (!This.customSSLVerification) {
                     completionHandler (NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
+					return;
                 }
 
                 if (challenge.ProtectionSpace.AuthenticationMethod != "NSURLAuthenticationMethodServerTrust") {
                     completionHandler (NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
+					return;
                 }
 
                 if (ServicePointManager.ServerCertificateValidationCallback == null) {
                     completionHandler (NSUrlSessionAuthChallengeDisposition.PerformDefaultHandling, challenge.ProposedCredential);
+					return;
                 }
 
                 // Convert Mono Certificates to .NET certificates and build cert 
@@ -333,12 +336,10 @@ namespace ModernHttpClient
                     completionHandler (
                       NSUrlSessionAuthChallengeDisposition.UseCredential,
                       NSUrlCredential.FromTrust (challenge.ProtectionSpace.ServerSecTrust));
-
-
-                } else {
-                    completionHandler (NSUrlSessionAuthChallengeDisposition.CancelAuthenticationChallenge, null);
+					return;
                 }
-                return;
+
+				completionHandler(NSUrlSessionAuthChallengeDisposition.CancelAuthenticationChallenge, null);
             }
 
             public override void WillPerformHttpRedirection (NSUrlSession session, NSUrlSessionTask task, NSHttpUrlResponse response, NSUrlRequest newRequest, Action<NSUrlRequest> completionHandler)
