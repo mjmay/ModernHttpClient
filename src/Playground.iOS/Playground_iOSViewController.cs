@@ -21,16 +21,16 @@ namespace Playground.iOS
         {
 
             //Here we accept any certificate and just print the cert's data.
-            ServicePointManager.ServerCertificateValidationCallback += (sender, certificate, chain, sslPolicyErrors) => {
-                System.Diagnostics.Debug.WriteLine("Callback Server Certificate: " + sslPolicyErrors);
+            //ServicePointManager.ServerCertificateValidationCallback += (sender, certificate, chain, sslPolicyErrors) => {
+            //    System.Diagnostics.Debug.WriteLine("Callback Server Certificate: " + sslPolicyErrors);
 
-                foreach(var el in chain.ChainElements) {
-                    System.Diagnostics.Debug.WriteLine(el.Certificate.GetCertHashString());
-                    System.Diagnostics.Debug.WriteLine(el.Information);
-                }
+            //    foreach(var el in chain.ChainElements) {
+            //        System.Diagnostics.Debug.WriteLine(el.Certificate.GetCertHashString());
+            //        System.Diagnostics.Debug.WriteLine(el.Information);
+            //    }
 
-                return true;
-            };
+            //    return true;
+            //};
 
         }
 
